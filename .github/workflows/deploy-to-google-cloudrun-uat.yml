@@ -55,4 +55,5 @@ jobs:
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
           --region ${{ env.GCP_REGION }} \
           --image ${{ env.IMAGE_NAME }} \
+          --port 25 \
           --allow-unauthenticated
