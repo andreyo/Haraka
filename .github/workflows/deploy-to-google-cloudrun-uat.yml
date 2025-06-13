@@ -38,8 +38,8 @@ jobs:
       - name: Create key files from base64 encoded secrets
         run: | 
           mkdir -p ./keys
-          echo -n ${{ secrets.PAIDLOCKS_FIRESTORE_ACCOUNT_KEY_JSON_BASE64 }} | base64 -d -o ./keys/paidlocks-firestore-account-key.json
-          echo -n ${{ secrets.PAIDLOCKS_STORAGE_ACCOUNT_KEY_JSON_BASE64 }} | base64 -d -o ./keys/paidlocks-storage-account-key.json
+          echo -n ${{ secrets.PAIDLOCKS_FIRESTORE_ACCOUNT_KEY_JSON_BASE64 }} | base64 --decode > ./keys/paidlocks-firestore-account-key.json
+          echo -n ${{ secrets.PAIDLOCKS_STORAGE_ACCOUNT_KEY_JSON_BASE64 }} | base64 --decode > ./keys/paidlocks-storage-account-key.json
 
       - name: Append HOST_NAME to ./config/host_list file
         run: |
