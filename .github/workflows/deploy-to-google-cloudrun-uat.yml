@@ -1,0 +1,58 @@
+name: 'Build and Deploy to Cloud Run: main -> UAT'
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  GCP_REGION: 'us-west1'
+  GCP_ARTIFACT_REGISTRY: 'us-west1-docker.pkg.dev'
+  CLOUD_RUN_SERVICE: 'haraka-uat'
+  HOST_NAME: 'uat.paidlocks.com'
+
+jobs:
+  deploy:
+    runs-on: 'ubuntu-latest'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Authenticate Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_API_KEY }}'
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v1"
+
+      - name: Authenticate Docker with GCP Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_ARTIFACT_REGISTRY }} --quiet
+
+      - name: 'Set IMAGE_NAME var'
+        run: echo "IMAGE_NAME=${{ env.GCP_ARTIFACT_REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/docker-repository/${{ env.CLOUD_RUN_SERVICE }}:${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Create key files from base64 encoded secrets
+        run: | 
+          mkdir -p ./keys
+          echo -n ${{ secrets.PAIDLOCKS_FIRESTORE_ACCOUNT_KEY_JSON_BASE64 }} | base64 -d -o ./keys/paidlocks-firestore-account-key.json
+          echo -n ${{ secrets.PAIDLOCKS_STORAGE_ACCOUNT_KEY_JSON_BASE64 }} | base64 -d -o ./keys/paidlocks-storage-account-key.json
+
+      - name: Append HOST_NAME to ./config/host_list file
+        run: |
+          echo "${{ env.HOST_NAME }}" >> ./config/host_list
+
+      - name: 'Build and Push Container to Artifact Registry'
+        run: |-
+          docker build --tag ${{ env.IMAGE_NAME }} .
+          docker push ${{ env.IMAGE_NAME }}
+          
+      - name: Deploy from Artifact Registry to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+          --region ${{ env.GCP_REGION }} \
+          --image ${{ env.IMAGE_NAME }} \
+          --allow-unauthenticated
