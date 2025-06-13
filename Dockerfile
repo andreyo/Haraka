@@ -45,6 +45,7 @@ RUN mkdir /etc/service/haraka
 ADD haraka.sh /etc/service/haraka/run
 
 EXPOSE 25
+ENV PORT=25
 
 # Start the init daemon - runit will launch the Haraka process
 CMD ["/sbin/my_init"]
