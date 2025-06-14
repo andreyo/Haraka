@@ -30,9 +30,6 @@ RUN haraka -i /haraka
 # Symlink the queue folder to /queue so it can be mounted externally
 # RUN ln -s /queue /haraka/queue
 
-# Override the entrypoint set in node base image.
-ENTRYPOINT [ "" ]
-
 EXPOSE 25
 ENV PORT=25
 
