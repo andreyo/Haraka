@@ -1,51 +1,40 @@
-# NOTICE: This is user-contributed and not officially supported by the Haraka team. Use at your own risk.
-#
-# This file describes how to build Haraka into a runnable linux container with all dependencies installed
-# To build:
-# 1.) Install docker (http://docker.io)
-# 2.) Clone Haraka repo if you haven't already: git clone https://github.com/haraka/Haraka.git
-# 3.) Modify config/host_list with the domain(s) that you'd like to receive mail to
-# 4.) Build: cd Haraka && docker build .
-# 5.) Run:
-# docker run -d <imageid>
-#
-# VERSION           0.1
-# DOCKER-VERSION    0.5.3
+FROM node:24-slim
 
-# See http://phusion.github.io/baseimage-docker/
-FROM phusion/baseimage:focal-1.2.0
+# Version of haraka to install. https://github.com/haraka/Haraka/releases.
+ARG HARAKA_VERSION=3.1.1
 
-MAINTAINER Justin Plock <jplock@gmail.com>
+# Install packages and build tools required for npm install of some plugins.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl unzip bash vim \
+    ca-certificates tzdata make \
+    git rsync gettext-base \
+    python3 gcc make build-essential libc6-dev \
+    && apt-get clean && rm -fr /var/lib/apt/lists/*
 
-ENV HOME /root
+# Installs haraka.
+RUN npm install -g Haraka@${HARAKA_VERSION}
+WORKDIR /haraka
 
-RUN /etc/my_init.d/00_regen_ssh_host_keys.sh
+# Copy the haraka config and plugins.
+COPY ./config /haraka/config
+COPY ./plugins/queue/firestore.js /haraka/plugins/queue/firestore.js
+COPY ./plugins/queue/gcp_storage.js /haraka/plugins/queue/gcp_storage.js
 
-RUN sed 's/main$/main universe/' -i /etc/apt/sources.list
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y -q update
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y -q install software-properties-common g++ make git curl
-RUN curl -sL https://deb.nodesource.com/setup_18.x | setuser root bash -
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y -q install nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Install pugin dependencies.
+RUN npm install @google-cloud/firestore@^7.11.1 && \
+    npm install @google-cloud/storage@^7.16.0 && \
+    npm install mailparser@^3.7.3
 
-# Optional, useful for development
-# See https://github.com/phusion/baseimage-docker#login_ssh
-#RUN rm -f /etc/service/sshd/down
-#RUN /usr/sbin/enable_insecure_key
+# Sets up default config directories.
+RUN haraka -i /haraka
 
-# Install Haraka
-RUN npm install -g Haraka --unsafe
-RUN haraka -i /usr/local/haraka
-ADD ./config/host_list /usr/local/haraka/config/host_list
-ADD ./config/plugins /usr/local/haraka/config/plugins
-RUN cd /usr/local/haraka && npm install
+# Symlink the queue folder to /queue so it can be mounted externally
+# RUN ln -s /queue /haraka/queue
 
-# Create haraka runit service
-RUN mkdir /etc/service/haraka
-ADD haraka.sh /etc/service/haraka/run
+# Override the entrypoint set in node base image.
+ENTRYPOINT [ "" ]
 
 EXPOSE 25
 ENV PORT=25
 
-# Start the init daemon - runit will launch the Haraka process
-CMD ["/sbin/my_init"]
+# Run the app in non-daemon mode.
+CMD [ "haraka", "-c", "/haraka" ]
